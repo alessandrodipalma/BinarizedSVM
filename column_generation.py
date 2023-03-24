@@ -1,24 +1,27 @@
 import cplex
 import numpy as np
 from alogrithm1 import scegli_soglie
-def solve_6F(F):
+def solve_6F(x, labels, F, C):
     # Step 1: risoluzione del problema (6-F)
+
     model = cplex.Cplex()
     model.set_log_stream(None)
     model.set_error_stream(None)
     model.set_warning_stream(None)
     model.set_results_stream(None)
 
+    p = number_of_predictor_variables = len(x[0])
+
     # definizione delle variabili di decisione
-    omega_plus = model.variables.add(obj=[omega_plus_lb[b] for b in B for lb in range(p)], lb=[0] * (p * len(B)))
-    omega_minus = model.variables.add(obj=[omega_minus_lb[b] for b in B for lb in range(p)], lb=[0] * (p * len(B)))
+    omega_plus = model.variables.add(obj=[omega_plus_lb[b] for b in F for lb in range(p)], lb=[0] * (p * len(F)))
+    omega_minus = model.variables.add(obj=[omega_minus_lb[b] for b in F for lb in range(p)], lb=[0] * (p * len(F)))
     xi = model.variables.add(obj=[C] * m, lb=[0] * m)
     beta_var = model.variables.add(obj=[0])
 
     # definizione dei vincoli
     for u in range(m):
-        lhs = [[(omega_plus_lb[b] - omega_minus_lb[b]) * cost_matrix[u, lb] * F[lb][u],
-                omega_plus[lb * len(B) + b] - omega_minus[lb * len(B) + b]] for lb in range(p) for b in B]
+        lhs = [[(omega_plus_lb[b] - omega_minus_lb[b]) * labels[u] * F[l][b][u],
+                omega_plus[lb * len(F) + b] - omega_minus[lb * len(F) + b]] for lb in range(p) for b in F]
         lhs.append([1, beta_var[0]])
         lhs.append([-1, xi[u]])
         model.linear_constraints.add(lin_expr=[lhs], senses=['G'], rhs=[1])
@@ -27,15 +30,55 @@ def solve_6F(F):
     model.solve()
 
     # estrazione della soluzione ottima
-    omega_star = np.zeros((p, len(B)))
+    omega_star = np.zeros((p, len(F)))
     for lb in range(p):
-        for b in B:
-            omega_star[lb, b] = model.solution.get_values(omega_plus[lb * len(B) + b]) - model.solution.get_values(
-                omega_minus[lb * len(B) + b])
+        for b in F:
+            omega_star[lb, b] = model.solution.get_values(omega_plus[lb * len(F) + b]) - model.solution.get_values(
+                omega_minus[lb * len(F) + b])
     beta_star = model.solution.get_values(beta_var[0])
     lambda_star = model.solution.get_dual_values()
 
-    return beta_star, lambda_star, omega_star
+
+    return lambda_star
+
+def solve_6F_dual(x, y, C, F):
+    model = cplex.Cplex()
+
+    # Add the decision variables
+    I = range(len(x))
+
+    lambdas = model.variables.add(names=["lambda_" + str(u) for u in I], lb=[0.0] * len(x))
+
+    # Set the objective function
+    model.objective.set_sense(model.objective.sense.maximize)
+    model.objective.set_linear([(lambdas[u], 0.0) for u in I])
+
+    # Add the constraints
+    for phi in F:
+        expr = cplex.SparsePair(ind=["lambda_" + str(u) for u in I],
+                                val=[y[u] * phi[u] for u in I])
+        model.linear_constraints.add(lin_expr=[expr, expr], senses=["L", "G"], rhs=[1.0, -1.0])
+
+    expr = cplex.SparsePair(ind=["lambda_" + str(u) for u in I], val=y)
+    model.linear_constraints.add(lin_expr=[expr], senses=["E"], rhs=[0.0])
+
+    for u in I:
+        expr = cplex.SparsePair(ind=["lambda_" + str(u) for u in I])
+        model.linear_constraints.add(lin_expr=[expr, expr], senses=["G","L"], rhs=[0.0, C])
+
+
+    # Solve the model
+    model.solve()
+
+    # Print the solution
+    print("Solution status:", model.solution.get_status())
+    print("Objective value:", model.solution.get_objective_value())
+    print("Dual variables:")
+    for u in I:
+        print("  lambda_" + str(u) + " = " + str(model.solution.get_values("lambda_" + str(u))))
+
+
+    return lambda_star
 def mediane(x):
     # Step 0: inizializzazione di F0
     F0 = []
@@ -45,31 +88,44 @@ def mediane(x):
         b_star_l = np.median(x[:,l])
         phi_star_l = np.zeros(len(x))
         for i in range(len(x)):
-            if x[i,l] >= b_star_l:
+            if x[i, l] >= b_star_l:
                 phi_star_l[i] = 1
             else:
                 phi_star_l[i] = -1
         F0.append(phi_star_l)
 
     return F0
-def column_generation(x):
+
+
+def gamma(phi, lambda_star, labels):
+    sum_ = 0
+
+    for u in range(len(phi)):
+        sum_ += lambda_star[u] * labels[u] * phi[u]
+
+    return sum_
+
+
+def column_generation(x, labels, C):
+    number_of_predictor_variables = len(x[0])
 
     # inizializzazione di F
     F = mediane(x)
 
-    # inizializzazione di β
-    beta = 0
-
     while True:
-        beta_star, lambda_star, omega_star = solve_6F(F)
+        beta_star, lambda_star, omega_star = solve_6F(x, labels, F, C)
         # Step 2: calcolo delle φlb^+_l e φlb^-_l e aggiornamento di F se necessario
         F_modified = False
-        for l in range(p):
-            phi_plus_l, phi_minus_l = scegli_soglie(predictor_variable[:,l], omega_star[l], lambda_star)
-            if gamma(phi_plus_l) > 1:
+        for l in range(number_of_predictor_variables):
+            b_plus_l, b_minus_l = scegli_soglie(x[:, l], labels, lambda_star)
+
+            phi_plus_l = [1 if x[:, l] >= b_plus_l else 0]
+            phi_minus_l = [1 if x[:, l] >= b_minus_l else 0]
+
+            if gamma(phi_plus_l, lambda_star, labels) > 1:
                 F.append(phi_plus_l)
                 F_modified = True
-            if gamma(phi_minus_l) < -1:
+            if gamma(phi_minus_l, lambda_star, labels) < -1:
                 F.append(phi_minus_l)
                 F_modified = True
 
@@ -77,12 +133,22 @@ def column_generation(x):
         if not F_modified:
             break
 
-    # calcolo della funzione obiettivo e degli omega_lb ottimi
-    omega_lb_star = np.zeros((p, len(B)))
-    for lb in range(p):
-        for b in B:
-            omega_lb_star[lb,b] = sum([omega_star[lb,b_prime] for b_prime in range(b, len(B))])
-
-    f_star = sum([sum([omega_lb_star[l,b] * F[l][
-
     return lambda_star
+
+
+
+
+def score_function(x, omega, soglie, B):
+    sum_ = 0
+
+    for predictor_var in range(len(x)):
+        for b in soglie[predictor_var]:
+            if x[predictor_var] > b:
+                sum_ += omega[predictor_var]
+
+    score = sum_ + B
+
+    if score > 0:
+        return 1
+    else:
+        return -1
