@@ -29,14 +29,14 @@ def scegli_soglie(x, c, lambda_star):
     i_plus = i_minus = i = 1
 
     # Passo 2-4: ciclo per la scelta delle soglie
-    while i < len(values):
+    while i < (len(values)-1):
         # Passo 2
         sum_ = sum_ + lambda_star[i] * labels[i]
 
         # Passo 3.1: se x(i) = x(i+1), passa al successivo
         if values[i] != values[i + 1]:
             # Passo 3.2: se x(i) ≠ x(i+1), controlla se ci sono soglie migliori
-            if ci_sono_soglie_migliori(values, labels):
+            if ci_sono_soglie_migliori(values, labels, i):
                 # Passo 3.2.a: ci sono soglie migliori
                 if sum_ > max_:
                     max_ = sum_
