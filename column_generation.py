@@ -107,13 +107,15 @@ def solve_6F_dual_with_cvpy(x, y, C, F):
 def mediane(x):
     # Step 0: inizializzazione di F0
     F0 = []
-    soglie = []
     number_of_predictor_variables = len(x[0])
+    soglie = {}
+    for l in range(number_of_predictor_variables):
+        soglie[l] = []
 
     for l in range(number_of_predictor_variables):
         b_star_l = np.median(x[:, l])
         phi_star_l = np.zeros(len(x))
-        soglie.append(b_star_l)
+        soglie[l].append(b_star_l)
         for i in range(len(x)):
             if x[i, l] >= b_star_l:
                 phi_star_l[i] = 1
@@ -156,11 +158,11 @@ def column_generation(x, labels, C):
 
             if gamma(phi_plus_l, lambda_star, labels) > 1:
                 F.append(np.array(phi_plus_l))
-                soglie.append(b_plus_l)
+                soglie[l].append(b_plus_l)
                 F_modified = True
             if gamma(phi_minus_l, lambda_star, labels) < -1:
                 F.append(np.array(phi_minus_l))
-                soglie.append(b_minus_l)
+                soglie[l].append(b_minus_l)
                 F_modified = True
 
         iter_count += 1
