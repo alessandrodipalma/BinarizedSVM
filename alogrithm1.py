@@ -1,4 +1,5 @@
 import numpy as np
+from tqdm import tqdm
 
 
 def ci_sono_valori_ripetuti(values, t, i):
@@ -13,10 +14,11 @@ def hanno_classi_diverse(labels, t, i):
 
 def ci_sono_soglie_migliori(values, labels, i):
     t = 1
-    while True:
+    while t < i:
         if ci_sono_valori_ripetuti(values, t, i) and hanno_classi_diverse(labels, t, i):
             return True
         t += 1
+    return False
 
 
 def scegli_soglie(x, c, lambda_star):
@@ -29,7 +31,7 @@ def scegli_soglie(x, c, lambda_star):
     i_plus = i_minus = i = 1
 
     # Passo 2-4: ciclo per la scelta delle soglie
-    while i < (len(values)-1):
+    for i in range(len(values) - 1):  # Passo 4: passa al successivo
         # Passo 2
         sum_ = sum_ + lambda_star[i] * labels[i]
 
@@ -53,11 +55,8 @@ def scegli_soglie(x, c, lambda_star):
                     min_ = sum_
                     i_minus = i
 
-        # Passo 4: passa al successivo
-        i += 1
-
     # Restituisce le soglie scelte
-    b_plus = i_plus
-    b_minus = i_minus
+    b_plus = x[i_plus]
+    b_minus = x[i_minus]
 
     return b_plus, b_minus

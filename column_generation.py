@@ -3,6 +3,7 @@ import numpy as np
 from alogrithm1 import scegli_soglie
 import cvxpy
 
+
 def solve_6F(x, labels, F, C):
     # Step 1: risoluzione del problema (6-F)
 
@@ -83,7 +84,8 @@ def solve_6F_dual(x, y, C, F):
     lambda_star = [model.solution.get_values(f"lambda_{u}") for u in I]
     return lambda_star
 
-def solve_6F_with_cvpy(x,y,C,F):
+
+def solve_6F_dual_with_cvpy(x, y, C, F):
     n = len(x)
     lambda_ = cvxpy.Variable(n)
     objective = cvxpy.Maximize(cvxpy.sum(lambda_))
@@ -97,18 +99,21 @@ def solve_6F_with_cvpy(x,y,C,F):
 
     problem = cvxpy.Problem(objective, constraints)
 
-    problem.solve(solver='ECOS', verbose=True)
+    problem.solve(solver='ECOS', verbose=True, abstol=1e-4)
 
     return lambda_.value
+
 
 def mediane(x):
     # Step 0: inizializzazione di F0
     F0 = []
+    soglie = []
     number_of_predictor_variables = len(x[0])
 
     for l in range(number_of_predictor_variables):
         b_star_l = np.median(x[:, l])
         phi_star_l = np.zeros(len(x))
+        soglie.append(b_star_l)
         for i in range(len(x)):
             if x[i, l] >= b_star_l:
                 phi_star_l[i] = 1
@@ -116,7 +121,7 @@ def mediane(x):
                 phi_star_l[i] = -1
         F0.append(phi_star_l)
 
-    return F0
+    return F0, soglie
 
 
 def gamma(phi, lambda_star, labels):
@@ -132,30 +137,35 @@ def column_generation(x, labels, C):
     number_of_predictor_variables = len(x[0])
 
     # inizializzazione di F
-    F = mediane(x)
+    F, soglie = mediane(x)
 
     iter_count = 0
-    F_modified = False
-    while iter_count < 3 or F_modified:  # Step 3: se F non è stato modificato, abbiamo trovato la soluzione ottima di (6)
-        lambda_star = solve_6F_with_cvpy(x, labels, C, F)
+    F_modified = True
+
+    while F_modified:  # Step 3: se F non è stato modificato, abbiamo trovato la soluzione ottima di (6)
+        print(f"iteration {iter_count}" + '-' * 100)
+        lambda_star = solve_6F_dual_with_cvpy(x, labels, C, F)
         # Step 2: calcolo delle φlb^+_l e φlb^-_l e aggiornamento di F se necessario
         F_modified = False
         for l in range(number_of_predictor_variables):
+            print(f"scelgo le soglie per {l}...")
             b_plus_l, b_minus_l = scegli_soglie(x[:, l], labels, lambda_star)
-
+            print(f"soglie trovate: {b_plus_l} {b_minus_l}")
             phi_plus_l = [1 if x[i, l] >= b_plus_l else 0 for i in range(len(x))]
             phi_minus_l = [1 if x[i, l] >= b_minus_l else 0 for i in range(len(x))]
 
             if gamma(phi_plus_l, lambda_star, labels) > 1:
-                F.append(phi_plus_l)
+                F.append(np.array(phi_plus_l))
+                soglie.append(b_plus_l)
                 F_modified = True
             if gamma(phi_minus_l, lambda_star, labels) < -1:
-                F.append(phi_minus_l)
+                F.append(np.array(phi_minus_l))
+                soglie.append(b_minus_l)
                 F_modified = True
 
         iter_count += 1
 
-    return lambda_star
+    return lambda_star, F, soglie
 
 
 def score_function(x, omega, soglie, B):
