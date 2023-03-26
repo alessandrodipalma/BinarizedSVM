@@ -85,32 +85,34 @@ def solve_6F_dual(x, y, C, F):
     return lambda_star
 
 
-def solve_6F_dual_with_cvpy(x, y, C, F):
-    n = len(x)
-    lambda_ = cvxpy.Variable(n)
+def solve_6F_dual_with_cvpy(x, c, C, F):
+    I = len(x)
+    lambda_ = cvxpy.Variable(I)
     objective = cvxpy.Maximize(cvxpy.sum(lambda_))
     constraints = []
-    for phi in F:
-        coeff = np.array([y[i] * phi[i] for i in range(n)])
-        constraints.extend([coeff.T @ lambda_ >= -1.0, coeff.T @ lambda_ <= 1.0])
+    for l in F.keys():
+        for phi in F[l]:
+            coeff = np.array([c[u] * phi[u] for u in range(I)])
+            constraints.extend([coeff.T @ lambda_ >= -1.0, coeff.T @ lambda_ <= 1.0])
 
-    constraints.append(y.T @ lambda_ == 0)
-    constraints.extend([lambda_ >= 0, lambda_ <= C])
+    constraints.append(c.T @ lambda_ == 0)
+    constraints.extend([lambda_ >= 0.0, lambda_ <= C])
 
     problem = cvxpy.Problem(objective, constraints)
 
-    problem.solve(solver='ECOS', verbose=True, abstol=1e-4)
+    problem.solve(solver='ECOS', verbose=True)
 
     return lambda_.value
 
 
 def mediane(x):
     # Step 0: inizializzazione di F0
-    F0 = []
+    F0 = {}
     number_of_predictor_variables = len(x[0])
     soglie = {}
     for l in range(number_of_predictor_variables):
         soglie[l] = []
+        F0[l] = []
 
     for l in range(number_of_predictor_variables):
         b_star_l = np.median(x[:, l])
@@ -121,7 +123,7 @@ def mediane(x):
                 phi_star_l[i] = 1
             else:
                 phi_star_l[i] = -1
-        F0.append(phi_star_l)
+        F0[l].append(phi_star_l)
 
     return F0, soglie
 
@@ -152,16 +154,19 @@ def column_generation(x, labels, C):
         for l in range(number_of_predictor_variables):
             print(f"scelgo le soglie per {l}...")
             b_plus_l, b_minus_l = scegli_soglie(x[:, l], labels, lambda_star)
-            print(f"soglie trovate: {b_plus_l} {b_minus_l}")
-            phi_plus_l = [1 if x[i, l] >= b_plus_l else 0 for i in range(len(x))]
-            phi_minus_l = [1 if x[i, l] >= b_minus_l else 0 for i in range(len(x))]
+            print(f"soglie trovate: b_plus:{b_plus_l}\t b_minus:{b_minus_l}")
 
-            if gamma(phi_plus_l, lambda_star, labels) > 1:
-                F.append(np.array(phi_plus_l))
+            phi_plus_l = [1 if x[i, l] >= b_plus_l else 0 for i in range(len(x))]
+            gamma_plus_l = gamma(phi_plus_l, lambda_star, labels)
+            if gamma_plus_l > 1:
+                F[l].append(np.array(phi_plus_l))
                 soglie[l].append(b_plus_l)
                 F_modified = True
-            if gamma(phi_minus_l, lambda_star, labels) < -1:
-                F.append(np.array(phi_minus_l))
+
+            phi_minus_l = [1 if x[i, l] >= b_minus_l else 0 for i in range(len(x))]
+            gamma_minus_l = gamma(phi_minus_l, lambda_star, labels)
+            if gamma_minus_l < -1:
+                F[l].append(np.array(phi_minus_l))
                 soglie[l].append(b_minus_l)
                 F_modified = True
 
