@@ -1,4 +1,3 @@
-import cplex
 import numpy as np
 from alogrithm1 import scegli_soglie
 import cvxpy
