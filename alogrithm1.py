@@ -1,7 +1,6 @@
 import numpy as np
 from tqdm import tqdm
 
-
 def ci_sono_valori_ripetuti(values, t, i):
     return len(np.unique(values[i - t:])) < len(values[i - t :])
 

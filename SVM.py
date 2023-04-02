@@ -1,8 +1,7 @@
-from column_generation import column_generation
 import numpy as np
 from matplotlib import pyplot as plt
 from prettytable import PrettyTable
-
+from column_generation import column_generation
 class BinarizedSVM:
 
     def __init__(self, C=1, verbose=False):
@@ -21,8 +20,7 @@ class BinarizedSVM:
         if predictor_variables_names is None:
             predictor_variables_names = [str(i) for i in range(X.shape[1])]
         elif len(predictor_variables_names) != X.shape[1]:
-            print(f"Predictor variables names should match input shape {X.shape}")
-            return
+            raise ValueError(f"Predictor variables names should match input shape {X.shape}")
 
         if X.shape[0] != y.shape[0]:
             print("Esempi ed etichette devono avere la stessa lunghezza.")
@@ -39,14 +37,24 @@ class BinarizedSVM:
             print(f"\nAddestramento completato in {stats['iter_count']} iterate")
 
         self.omega_star = {}
+        beta_stars = np.zeros(X.shape[0])
 
         for l in self.soglie.keys():
             self.omega_star[l] = np.zeros(len(self.soglie[l]))
             for b, phi in enumerate(self.soglie[l]):
-                for i in range(len(X)):
-                    c = 1 if X[i, l] > phi else -1
-                    self.omega_star[l][b] += self.lambda_star[i] * c
+                for u in range(X.shape[0]):
+                    c = 1 if X[u, l] > phi else -1
+                    omega = self.lambda_star[u] * c * y[u]
+                    self.omega_star[l][b] += omega
 
+                    beta_stars[u] += y[u] - omega
+
+        self.beta_star = np.mean(beta_stars)
+        self.X = X
+
+        if self.verbose:
+            #print(self.omega_star)
+            print(self.beta_star)
 
         if self.verbose:
             table = PrettyTable()
@@ -62,23 +70,49 @@ class BinarizedSVM:
             print(table)
 
     def visualizza_soglie(self, out_dir=None):
+        # trova minimo e massimo dei pesi delle feature per aver dei grafici coerenti
 
-        for predictor_variable, thresholds in self.soglie.items():
+        omega_max = max([np.max(v) for v in self.omega_star.values()])
+        omega_min = min([np.min(v) for v in self.omega_star.values()])
 
-            sorted_soglie = sorted(list(zip(self.soglie[predictor_variable], self.omega_star[predictor_variable])),
-                                   reverse=False)
-            soglies = [v for (v, l) in sorted_soglie]
-            omegas = [l for (v, l) in sorted_soglie]
+        n = len(self.predictor_variables_names)
+        cols = 4
+        rows = int(n / cols)+1
+
+        fig, axs = plt.subplots(rows, cols, figsize=(5*cols,5*rows))
+        for i in range(rows):
+            for j in range(cols):
+                predictor_variable = i * cols + j
+
+                if predictor_variable < n:
+                    sorted_soglie = sorted(
+                        list(zip(self.soglie[predictor_variable],self.omega_star[predictor_variable])),
+                        reverse=True)
+
+                    soglies = [v for (v, l) in sorted_soglie]
+                    omegas = [l for (v, l) in sorted_soglie]
+                    print(sorted_soglie)
+
+                    min_x = np.min(self.X[:, predictor_variable])
+                    max_x = np.max(self.X[:, predictor_variable])
+
+                    axs[i, j].step(soglies, omegas)
+
+                    axs[i, j].set_ylabel('Weight')
+                    axs[i, j].set_ylim(omega_min, omega_max)
+                    axs[i, j].set_xlim(min_x, max_x)
+
+                    axs[i, j].set_xlabel('soglia')
 
 
-            plt.step(soglies, omegas)
-            plt.xlabel('soglia')
-            plt.ylabel('Weight')
-            plt.title(f"Pesi per var {predictor_variable}")
-            if out_dir is None:
-                plt.show()
-            else:
-                plt.savefig(f"{out_dir}{predictor_variable}")
+                    axs[i, j].set_title(f"Pesi per var {self.predictor_variables_names[predictor_variable]}")
+
+        if out_dir is None:
+            plt.show()
+        else:
+            plt.savefig(f"{out_dir}soglie.png")
+
+
 
     def predict(self, X):
         return np.array(list(map(self.score_function, X)))
@@ -90,7 +124,7 @@ class BinarizedSVM:
             for j, phi in enumerate(self.F[l]):
                 sum_ += self.omega_star[l][j] * phi(x[l])
 
-        score = sum_  # + B
+        score = sum_  + self.beta_star
         # print(score)
         if score > 0:
             return 1

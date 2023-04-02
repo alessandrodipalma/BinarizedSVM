@@ -99,7 +99,7 @@ def solve_6F_dual_with_cvpy(x, c, C, F, verbose=False):
 
     problem = cvxpy.Problem(objective, constraints)
 
-    problem.solve(solver='ECOS', verbose=verbose)
+    problem.solve(solver='ECOS', verbose=verbose, abstol=1e-8)
 
     return lambda_.value
 
