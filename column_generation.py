@@ -115,19 +115,19 @@ def mediane(x):
 
     for l in range(number_of_predictor_variables):
         b_star_l = np.median(x[:, l])
-        phi_star_l = lambda x: 1 if x > b_star_l else 0
+        phi_star_l = lambda x: 1 if x >= b_star_l else 0
         soglie[l].append(b_star_l)
         F0[l].append(phi_star_l)
 
     return F0, soglie
 
 
-def gamma(x, b, l, lambda_star, labels):
+def gamma(x, b, lambda_star, labels):
     phi = lambda x: 1 if x >= b else 0
     sum_ = 0
 
-    for u in range(x.shape[1]):
-        sum_ += lambda_star[u] * labels[u] * phi(x[l,u])
+    for u in range(x.shape[0]):
+        sum_ += lambda_star[u] * labels[u] * phi(x[u])
 
     return sum_, phi
 
@@ -155,17 +155,19 @@ def column_generation(x, labels, C, max_iter=1000, verbose=False):
 
             if verbose: print(f"soglie trovate: b_plus:{b_plus_l}\t b_minus:{b_minus_l}")
 
-            gamma_plus_l, phi_plus_l = gamma(x, b_plus_l, l, lambda_star, labels)
+            gamma_plus_l, phi_plus_l = gamma(x[:, l], b_plus_l, lambda_star, labels)
             if gamma_plus_l > 1:
                 F[l].append(phi_plus_l)
                 soglie[l].append(b_plus_l)
                 F_modified = True
+                if verbose: print(f"\taggiungo soglia+ per {l}...")
 
-            gamma_minus_l, phi_minus_l = gamma(x, b_minus_l, l, lambda_star, labels)
+            gamma_minus_l, phi_minus_l = gamma(x[:, l], b_minus_l, lambda_star, labels)
             if gamma_minus_l < -1:
                 F[l].append(phi_minus_l)
                 soglie[l].append(b_minus_l)
                 F_modified = True
+                if verbose: print(f"\taggiungo soglia- per {l}...")
 
         iter_count += 1
 

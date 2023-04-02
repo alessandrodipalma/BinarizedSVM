@@ -9,7 +9,7 @@ class BinarizedSVM:
         self.C = C
         self.verbose = verbose
 
-    def fit(self, X, y, predictor_variables_names=None):
+    def fit(self, X, y, predictor_variables_names=None, max_iter=100):
         """
 
         :param X: bidimensional numpy array of shape (n,m), containing the n training samples
@@ -33,7 +33,7 @@ class BinarizedSVM:
 
         self.predictor_variables_names = predictor_variables_names
         self.n_predictor_vars = len(self.predictor_variables_names)
-        self.lambda_star, self.F, self.soglie, stats = column_generation(X, y, self.C, verbose=self.verbose)
+        self.lambda_star, self.F, self.soglie, stats = column_generation(X, y, self.C, verbose=self.verbose, max_iter=max_iter)
 
         if self.verbose:
             print(f"\nAddestramento completato in {stats['iter_count']} iterate")
