@@ -2,11 +2,13 @@ import numpy as np
 from matplotlib import pyplot as plt
 from prettytable import PrettyTable
 from column_generation import column_generation
-class BinarizedSVM:
+from sklearn.base import BaseEstimator, ClassifierMixin
+class BinarizedSVM(BaseEstimator, ClassifierMixin):
 
     def __init__(self, C=1, verbose=False):
         self.C = C
         self.verbose = verbose
+
 
     def fit(self, X, y, predictor_variables_names=None, max_iter=100):
         """

@@ -101,10 +101,10 @@ def load_bupa():
 DATASETS_DICT = {
     'sonar': load_sonar,
     'bands': load_bands,
-    # #'credit': load_credit,
+    #'credit': load_credit,
     'ionosphere': load_ionosphere,
     'wdbc': load_wdbc,
-    'cleveland': load_cleveland,
+    #'cleveland': load_cleveland,
     'housing': load_housing,
     'pima': load_pima,
     'bupa': load_bupa
